@@ -73,7 +73,7 @@ async def process_question(message: types.Message, state: FSMContext):
 
 
 
-        if score >= 5:
+    if score >= 5:
             text += (
                 "⚠️ Это серьёзный повод задуматься. Похоже, у вашего близкого может быть зависимость.
 "
