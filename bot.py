@@ -1,80 +1,103 @@
+import logging
+import asyncio
 import os
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
 
-# Получаем токен из переменной окружения
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+from aiogram import Bot, Dispatcher, types
+from aiogram.enums.parse_mode import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-if not BOT_TOKEN:
-    print("Ошибка: переменная окружения BOT_TOKEN не установлена.")
-    exit()
+API_TOKEN = os.getenv("API_TOKEN")
+if not API_TOKEN:
+    raise ValueError("❌ Переменная окружения API_TOKEN не установлена.")
 
-# Вопросы и варианты ответов
-questions = {
-    1: {
-        'text': 'Как часто ваш близкий употребляет алкоголь или наркотики?',
-        'options': [
-            {'text': 'Никогда', 'score': 0},
-            {'text': 'Редко', 'score': 1},
-            {'text': 'Часто', 'score': 2},
-            {'text': 'Почти каждый день', 'score': 3},
-        ]
-    },
-    2: {
-        'text': 'Пытался ли он/она бросить, но не смог(ла)?',
-        'options': [
-            {'text': 'Да', 'score': 2},
-            {'text': 'Нет', 'score': 0},
-            {'text': 'Не знаю', 'score': 1},
-        ]
-    },
-    3: {
-        'text': 'Стал(а) ли он/она более скрытным или агрессивным?',
-        'options': [
-            {'text': 'Да', 'score': 2},
-            {'text': 'Нет', 'score': 0},
-            {'text': 'Иногда', 'score': 1},
-        ]
-    },
-    4: {
-        'text': 'Есть ли проблемы с работой, деньгами или законом?',
-        'options': [
-            {'text': 'Да', 'score': 2},
-            {'text': 'Нет', 'score': 0},
-            {'text': 'Иногда', 'score': 1},
-        ]
-    },
-    5: {
-        'text': 'Вы часто тревожитесь за этого человека?',
-        'options': [
-            {'text': 'Почти постоянно', 'score': 3},
-            {'text': 'Иногда', 'score': 2},
-            {'text': 'Редко', 'score': 1},
-            {'text': 'Никогда', 'score': 0},
-        ]
-    }
-}
+logging.basicConfig(level=logging.INFO)
+bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
+dp = Dispatcher(storage=MemoryStorage())
 
-# Команда /start
-def start(update, context: CallbackContext):
-    context.user_data['score'] = 0
-    context.user_data['q'] = 1
-    send_question(update, context)
+questions = [
+    "1️⃣ Часто ли ваш близкий <b>исчезает без объяснений</b>, отключает телефон и ведёт себя скрытно?",
+    "2️⃣ Наблюдаете ли вы <b>резкие перепады настроения</b>, вспышки злости, слёз без повода?",
+    "3️⃣ Пропадают ли <b>деньги или вещи</b> из дома? Часто ли он/она просит занять?",
+    "4️⃣ Поймали ли вы близкого <b>на лжи</b> больше одного раза?",
+    "5️⃣ Сильно ли <b>поменялся круг общения</b>? Появились странные новые друзья?",
+    "6️⃣ Есть ли <b>проблемы с работой или учёбой</b>: прогулы, увольнение, конфликты?",
+    "7️⃣ Изменилась ли <b>внешность</b>: похудение, мешки под глазами, серый цвет лица?",
+    "8️⃣ Есть ли <b>проблемы со сном</b>: бессонница, спит днём, бодрствует ночью?",
+    "9️⃣ На ваши опасения отвечает <b>агрессией или отрицанием</b>?",
+    "🔟 Чувствуете ли вы <b>усталость, тревогу, бессилие</b> и пытаетесь всё контролировать?"
+]
 
-# Отправка вопроса
-def send_question(update, context: CallbackContext):
-    q_num = context.user_data['q']
-    question = questions.get(q_num)
+yes_no_kb = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="Да"), KeyboardButton(text="Нет")]],
+    resize_keyboard=True,
+    one_time_keyboard=True
+)
 
-    if not question:
-        show_result(update, context)
-        return
+class TestStates(StatesGroup):
+    question = State()
 
-    keyboard = [
-        [InlineKeyboardButton(opt['text'], callback_data=str(opt['score']))]
-        for opt in question['options']
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+user_data = {}
 
-    if update.message:
-        update.message.reply_text(question_
+@dp.message(commands=["start"])
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.clear()
+    user_data[message.from_user.id] = {"score": 0, "index": 0}
+    await message.answer(
+        "👋 Привет! Это чек-лист: <b>«10 признаков, что ваш близкий в зависимости»</b>
+
+"
+        "Отвечай честно: <b>Да</b> или <b>Нет</b>. Поехали!",
+        reply_markup=yes_no_kb
+    )
+    await state.set_state(TestStates.question)
+    await message.answer(questions[0])
+
+@dp.message(TestStates.question)
+async def process_question(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    data = user_data.get(user_id)
+
+    if message.text.lower() == "да":
+        data["score"] += 1
+
+    data["index"] += 1
+
+    if data["index"] < len(questions):
+        await message.answer(questions[data["index"]])
+    else:
+        score = data["score"]
+        text = f"✅ Вы ответили «да» на {score} из 10 вопросов.
+
+"
+
+        if score >= 5:
+            text += (
+                "⚠️ Это серьёзный повод задуматься. Похоже, у вашего близкого может быть зависимость.
+"
+                "Не откладывайте. Помощь есть — напишите специалисту.
+
+"
+                "<b>📩 Можете написать прямо сюда — поддержка начнётся с первого шага.</b>"
+            )
+        elif 3 <= score < 5:
+            text += (
+                "🟡 Некоторые признаки есть. Это может быть начальная стадия зависимости или другая сложность.
+"
+                "Будьте внимательны и не бойтесь обратиться за консультацией."
+            )
+        else:
+            text += (
+                "🟢 Пока что серьёзных признаков нет. Но не теряйте внимательность."
+            )
+
+        await state.clear()
+        await message.answer(text, reply_markup=ReplyKeyboardRemove())
+
+async def main():
+    await dp.start_polling(bot)
+
+if name == "__main__":
+    asyncio.run(main())
