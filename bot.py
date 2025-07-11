@@ -71,7 +71,7 @@ async def process_question(message: types.Message, state: FSMContext):
            score = data["score"]
     text = f"✅ Вы ответили «да» на {score} из 10 вопросов.\n"
 
-"
+
 
         if score >= 5:
             text += (
