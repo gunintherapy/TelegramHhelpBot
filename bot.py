@@ -68,8 +68,8 @@ async def process_question(message: types.Message, state: FSMContext):
     if data["index"] < len(questions):
         await message.answer(questions[data["index"]])
     else:
-        score = data["score"]
-        text = f"✅ Вы ответили «да» на {score} из 10 вопросов.
+           score = data["score"]
+    text = f"✅ Вы ответили «да» на {score} из 10 вопросов.\n"
 
 "
 
