@@ -1,93 +1,80 @@
-import logging
-import asyncio
 import os
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
 
-from aiogram import Bot, Dispatcher, types
-from aiogram.enums.parse_mode import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+if not BOT_TOKEN:
+    print("Ошибка: переменная окружения BOT_TOKEN не установлена.")
+    exit()
 
-API_TOKEN = os.getenv("API_TOKEN")
-if not API_TOKEN:
-    raise ValueError("❌ Переменная окружения API_TOKEN не установлена.")
+questions = {
+    1: {'text': 'Употребляет ли ваш близкий алкоголь или наркотики чаще, чем раньше?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]},
+    2: {'text': 'Скрывает ли он/она своё употребление от вас?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]},
+    3: {'text': 'Становится ли он/она агрессивным или раздражительным без употребления?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]},
+    4: {'text': 'Отрицает ли проблему, даже при очевидных последствиях?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]},
+    5: {'text': 'Меняется ли его/её круг общения?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]},
+    6: {'text': 'Есть ли финансовые проблемы, связанные с употреблением?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]},
+    7: {'text': 'Замечаете ли проблемы с работой/учёбой?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]},
+    8: {'text': 'Были ли проблемы с законом из-за употребления?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]},
+    9: {'text': 'Бросал(а) ли он/она, но возвращался(ась) к употреблению?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]},
+    10: {'text': 'Есть ли проблемы со здоровьем, вызванные употреблением?', 'options': [{'text': 'Да', 'score': 1}, {'text': 'Нет', 'score': 0}]}
+}
 
-logging.basicConfig(level=logging.INFO)
-bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(storage=MemoryStorage())
+def start(update: Update, context: CallbackContext):
+    context.user_data['score'] = 0
+    context.user_data['q'] = 1
+    update.message.reply_text(
+        "👋 Привет! Это чек-лист: <b>«10 признаков, что ваш близкий в зависимости»</b>
 
-questions = [
-    "1️⃣ Часто ли ваш близкий <b>исчезает без объяснений</b>, отключает телефон и ведёт себя скрытно?",
-    "2️⃣ Наблюдаете ли вы <b>резкие перепады настроения</b>, вспышки злости, слёз без повода?",
-    "3️⃣ Пропадают ли <b>деньги или вещи</b> из дома? Часто ли он/она просит занять?",
-    "4️⃣ Поймали ли вы близкого <b>на лжи</b> больше одного раза?",
-    "5️⃣ Сильно ли <b>поменялся круг общения</b>? Появились странные новые друзья?",
-    "6️⃣ Есть ли <b>проблемы с работой или учёбой</b>: прогулы, увольнение, конфликты?",
-    "7️⃣ Изменилась ли <b>внешность</b>: похудение, мешки под глазами, серый цвет лица?",
-    "8️⃣ Есть ли <b>проблемы со сном</b>: бессонница, спит днём, бодрствует ночью?",
-    "9️⃣ На ваши опасения отвечает <b>агрессией или отрицанием</b>?",
-    "🔟 Чувствуете ли вы <b>усталость, тревогу, бессилие</b> и пытаетесь всё контролировать?"
-]
+"
+        "Отвечайте честно: <b>Да</b> или <b>Нет</b>.
 
-yes_no_kb = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text="Да"), KeyboardButton(text="Нет")]],
-    resize_keyboard=True,
-    one_time_keyboard=True
-)
-
-class TestStates(StatesGroup):
-    question = State()
-
-user_data = {}
-
-@dp.message(commands=["start"])
-async def cmd_start(message: types.Message, state: FSMContext):
-    await state.clear()
-    user_data[message.from_user.id] = {"score": 0, "index": 0}
-    await message.answer(
-        "👋 Привет! Это чек-лист: <b>«10 признаков, что ваш близкий в зависимости»</b>"
-
-
-        "Отвечай честно: <b>Да</b> или <b>Нет</b>. Поехали!",
-        reply_markup=yes_no_kb
+Поехали!",
+        parse_mode="HTML"
     )
-    await state.set_state(TestStates.question)
-    await message.answer(questions[0])
+    send_question(update, context)
 
-@dp.message(TestStates.question)
-async def process_question(message: types.Message, state: FSMContext):
-    user_id = message.from_user.id
-    data = user_data.get(user_id)
+def send_question(update: Update, context: CallbackContext):
+    q_num = context.user_data['q']
+    question = questions.get(q_num)
+    if not question:
+        show_result(update, context)
+        return
 
-    if message.text.lower() == "да":
-        data["score"] += 1
-
-    data["index"] += 1
-
-    if data["index"] < len(questions):
-        await message.answer(questions[data["index"]])
+    keyboard = [[InlineKeyboardButton(opt['text'], callback_data=str(opt['score']))] for opt in question['options']]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    if update.message:
+        update.message.reply_text(question['text'], reply_markup=reply_markup)
     else:
-           score = data["score"]
-    text = f"✅ Вы ответили «да» на {score} из 10 вопросов.\n"
+        update.callback_query.edit_message_text(question['text'], reply_markup=reply_markup)
 
+def button(update: Update, context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+    score = int(query.data)
+    context.user_data['score'] += score
+    context.user_data['q'] += 1
+    send_question(update, context)
 
+def show_result(update: Update, context: CallbackContext):
+    total = context.user_data['score']
+    if total >= 6:
+        text = "⚠️ Серьёзные признаки зависимости. Обратитесь за помощью к специалисту как можно скорее."
+    elif 3 <= total < 6:
+        text = "🟡 Некоторые признаки есть. Не игнорируйте тревогу, лучше проконсультироваться."
+    else:
+        text = "🟢 Пока всё в порядке. Но будьте внимательны к изменениям в будущем."
+    update.callback_query.edit_message_text(f"Результат: {total} из 10.
 
-if score >= 5:
-    text += "⚠️ Это серьёзный повод задуматься. Похоже, у вашего близкого может быть зависимость.\n" \
-            "Не откладывайте. Помощь есть — напишите специалисту.\n" \
-            "<b>📩 Можете написать прямо сюда — поддержка начнётся с первого шага.</b>"
-elif 3 <= score < 5:
-    text += "🟡 Некоторые признаки есть. Это может быть начальная стадия зависимости или другая сложность.\n" \
-            "Будьте внимательны и не бойтесь обратиться за консультацией."
-else:
-    text += "🟢 Пока что серьёзных признаков нет. Но не теряйте внимательность."
+{text}")
 
-context.user_data.clear()
-message.reply_text(text, reply_markup=ReplyKeyboardRemove(), parse_mode="HTML")
+def main():
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CallbackQueryHandler(button))
+    updater.start_polling()
+    updater.idle()
 
-async def main():
-    await dp.start_polling(bot)
-
-if name == "__main__":
-    asyncio.run(main())
+if name == '__main__':
+    main()
