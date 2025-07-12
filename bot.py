@@ -73,7 +73,7 @@ async def process_question(message: types.Message, state: FSMContext):
 
 
 
-    if score >= 5:
+if score >= 5:
     text += "⚠️ Это серьёзный повод задуматься. Похоже, у вашего близкого может быть зависимость.\n" \
             "Не откладывайте. Помощь есть — напишите специалисту.\n" \
             "<b>📩 Можете написать прямо сюда — поддержка начнётся с первого шага.</b>"
@@ -83,7 +83,8 @@ elif 3 <= score < 5:
 else:
     text += "🟢 Пока что серьёзных признаков нет. Но не теряйте внимательность."
 
-message.reply_text(text, reply_markup=ReplyKeyboardRemove(), parse_mode="HTML")
+await state.clear()
+await message.answer(text, reply_markup=ReplyKeyboardRemove())
 
 async def main():
     await dp.start_polling(bot)
