@@ -24,12 +24,8 @@ def start(update: Update, context: CallbackContext):
     context.user_data['score'] = 0
     context.user_data['q'] = 1
     update.message.reply_text(
-        "👋 Привет! Это чек-лист: <b>«10 признаков, что ваш близкий в зависимости»</b>
-
-"
-        "Отвечайте честно: <b>Да</b> или <b>Нет</b>.
-
-Поехали!",
+        "👋 Привет! Это чек-лист: <b>«10 признаков, что ваш близкий в зависимости»</b>\n\n"
+        "Отвечайте честно: <b>Да</b> или <b>Нет</b>.\n\nПоехали!",
         parse_mode="HTML"
     )
     send_question(update, context)
@@ -64,9 +60,7 @@ def show_result(update: Update, context: CallbackContext):
         text = "🟡 Некоторые признаки есть. Не игнорируйте тревогу, лучше проконсультироваться."
     else:
         text = "🟢 Пока всё в порядке. Но будьте внимательны к изменениям в будущем."
-    update.callback_query.edit_message_text(f"Результат: {total} из 10.
-
-{text}")
+    update.callback_query.edit_message_text(f"Результат: {total} из 10.\n\n{text}")
 
 def main():
     updater = Updater(BOT_TOKEN, use_context=True)
@@ -76,5 +70,5 @@ def main():
     updater.start_polling()
     updater.idle()
 
-if name == '__main__':
+if __name__ == '__main__':
     main()
