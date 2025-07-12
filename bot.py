@@ -83,8 +83,8 @@ elif 3 <= score < 5:
 else:
     text += "🟢 Пока что серьёзных признаков нет. Но не теряйте внимательность."
 
-await state.clear()
-await message.answer(text, reply_markup=ReplyKeyboardRemove())
+context.user_data.clear()
+message.reply_text(text, reply_markup=ReplyKeyboardRemove(), parse_mode="HTML")
 
 async def main():
     await dp.start_polling(bot)
